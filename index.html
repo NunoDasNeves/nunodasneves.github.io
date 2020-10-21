@@ -1,7 +1,57 @@
 <html>
 <head>
+	<meta charset="utf-8">
+  	<meta name="viewport" content="width=device-width,initial-scale=1.0">
+  	<link rel="icon" href="/todofavicon.ico">
+  	<meta name="description" content="Home page of Nuno Das Neves">
 	<title>Nuno Das Neves dot com</title>
+	<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-style: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: rgba(40,40,40,1);
+  background-color: rgba(230,230,230,1);
+  font-size: 18px;
+  line-height: 1.4;
+  /* font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', Helvetica, 'Open Sans', sans-serif; */
+}
+.content {
+  margin: 20pt;
+}
+.photo {
+	float:right;
+	margin:20pt;
+	text-align: center;
+}
+.actual-photo {
+	width: 500px;
+	height: 625px;
+	background-image: url("photo.jpg");
+}
+	</style>
 </head>
-<p>Home page of Nuno Das Neves</p>
-<p>I'm not a web developer.</p>
+<body>
+	<div class=photo>
+		<div class=actual-photo></div>
+		<p>me</p>
+	</div>
+	<div class=content>
+		<p>Home page of Nuno Das Neves</p>
+		<p>
+			Some stuff that's on <a href="https://github.com/NunoDasNeves/">my Github</a>:
+			<ul>
+			<li><a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a>: C/C++ platform layer for making games with SDL on Windows or Linux - based on code from <a href="https://handmadehero.org/faq">Handmade Hero</a></li>
+			<li><a href="https://github.com/NunoDasNeves/rigid-body-sim">rigid body sim</a>: 2D rigid body simulator made with <a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a> <br><img src="rigid-body-sim.gif"></li>
+			<li><a href="https://nunodasneves.github.io/interactive-algorithms/">interactive algorithms</a>: A visualization of <a href="https://en.wikipedia.org/wiki/Convolutional_code">convolutional codes</a> and the <a href="https://en.wikipedia.org/wiki/Viterbi_algorithm">Viterbi algorithm</a> (and Google <a href="https://en.wikipedia.org/wiki/PageRank">pagerank</a>, kinda)</li>
+			<li><a href="https://github.com/NunoDasNeves/slp-to-mp4">slp to mp4</a>: Convert <a href="https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee">Super Smash Bros Melee</a> replays (recorded with <a href="https://slippi.gg/">Project Slippi</a>) to video</li>
+			</ul>
+		</p>
+	</div>
+	</body>
 </html>
