@@ -1,59 +1,192 @@
 <html>
+
 <head>
 	<meta charset="utf-8">
-  	<meta name="viewport" content="width=device-width,initial-scale=1.0">
-  	<link rel="icon" href="/todofavicon.ico">
-  	<meta name="description" content="Home page of Nuno Das Neves">
+	<meta name="viewport" content="width=device-width,initial-scale=1.0">
+	<link rel="icon" href="/todofavicon.ico">
+	<meta name="description" content="Home page of Nuno Das Neves">
 	<title>Nuno Das Neves dot com</title>
 	<style>
-html, body {
-  margin: 0;
-  padding: 0;
-  letter-spacing: 0;
-  font-weight: 400;
-  font-style: normal;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  color: rgba(40,40,40,1);
-  background-color: rgba(230,230,230,1);
-  font-size: 18px;
-  line-height: 1.4;
-  /* font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', 'Roboto', Helvetica, 'Open Sans', sans-serif; */
-}
-.content {
-  margin: 20pt;
-}
-.photo {
-	float:right;
-	margin:20pt;
-	text-align: center;
-}
-.actual-photo {
-	width: 500px;
-	height: 625px;
-	background-image: url("photo.jpg");
-}
+		@font-face {
+			font-family: 'Roboto';
+			src: url('fonts/Roboto/Roboto-Regular.ttf');
+			font-weight: 400;
+			font-style: normal;
+		}
+		@font-face {
+			font-family: 'RobotoSlab';
+			src: url('fonts/RobotoSlab/RobotoSlab-Light.ttf');
+			font-weight: 300;
+			font-style: normal;
+		}
+		/*
+		@font-face {
+			font-family: 'Lora';
+			src: url('fonts/Lora/Lora-Regular.ttf');
+			font-weight: 400;
+			font-style: normal;
+		}*/
+		:root {
+			--color-bg: rgb(29, 29, 32);
+			--color-li-bg: rgb(41, 38, 37);
+			--color-font: rgb(218, 218, 218);
+			--color-tag: rgb(168, 168, 168);
+			--color-a: rgb(159, 249, 255);
+			--color-a-visited: rgb(65, 104, 177);
+			--font-family-sans-serif: 'Roboto', Helvetica, 'Open Sans', sans-serif;
+			/*--font-family-serif: 'Lora', "Times New Roman", Times, serif;*/
+			--font-family-h3: 'RobotoSlab', "Times New Roman", Times, serif;
+		}
+		@media (prefers-color-scheme: light) {
+			:root {
+
+			}
+		}
+
+		html,
+		body {
+			margin: 0;
+			padding: 0;
+			letter-spacing: 0;
+			font-weight: 400;
+			font-style: normal;
+			text-rendering: optimizeLegibility;
+			-webkit-font-smoothing: antialiased;
+			-moz-osx-font-smoothing: grayscale;
+			background-color: var(--color-bg);
+			font-size: 18px;
+			line-height: 1.4;
+			color: var(--color-font);
+			font-family: var(--font-family-sans-serif);
+		}
+		ul {
+			margin: 0;
+			padding: 0;
+		}
+		li {
+			list-style:none;
+			margin-bottom: 10px;
+			padding: 10pt;
+			background-color: var(--color-li-bg);
+		}
+		a {
+			color: var(--color-a);
+			text-decoration: none;
+		}
+		a:visited {
+			color: var(--color-a-visited);
+		}
+		p {
+			margin: 0;
+			padding: 0;
+		}
+		h1,h2,h3,h4,h5 {
+			margin: 0;
+			padding: 0;
+			font-family: var(--font-family-sans-serif);
+		}
+		h2 {
+			font-size: 16pt;
+		}
+		h3 {
+			font-family: var(--font-family-h3);
+		}
+
+		.title {
+			display: flex;
+			margin: 20px 0;
+		}
+		.title-text {
+			display: flex;
+			flex-direction: column;
+			justify-content: center;
+			padding: 0 20px 0;
+		}
+		.photo {
+		}
+		.actual-photo {
+			border-radius: 100%;
+			width: 100px;
+			height: 100px;
+			background-image: url("images/photo.jpg");
+			background-size: contain;
+		}
+		.content {
+			margin: 0 200pt;
+		}
+		.main {
+			/*justify-content: space-around;*/
+		}
+		.main-flex > div {
+			/*max-width: 50vw;*/
+		}
+		.tags {
+			font-family: var(--font-family-sans-serif);
+			font-size: medium;
+			color: var(--color-tag);
+		}
+		.card-images {
+			padding: 10px;
+			display: flex;
+		}
+		.card-images > img {
+			padding-right: 10px;
+		}
+
 	</style>
 </head>
+
 <body>
-	<div class=photo>
-		<div class=actual-photo></div>
-		<p>me</p>
-	</div>
 	<div class=content>
-		<p>Home page of Nuno Das Neves</p>
-		<p>
-			Some stuff I've made</a>:
-			<ul>
-			<li><a href="https://nunodasneves.com/spite-and-malice-web">Spite and Malice</a>: A multiplayer browser-based version of the classic card game <a href="https://en.wikipedia.org/wiki/Spite_and_Malice">Spite and Malice</a></li>
-			<li><a href="https://nunodasneves.itch.io/swamp-bubble-popper">Swamp Bubble Popper</a>: A game about popping bubbles. In a swamp.</li>
-			<li><a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a>: C/C++ platform layer for making games with SDL on Windows or Linux - based on code from <a href="https://handmadehero.org/faq">Handmade Hero</a></li>
-			<li><a href="https://github.com/NunoDasNeves/rigid-body-sim">rigid body sim</a>: 2D rigid body simulator made with <a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a> <br><img src="rigid-body-sim.gif"></li>
-			<li><a href="https://nunodasneves.github.io/interactive-algorithms/">interactive algorithms</a>: A visualization of <a href="https://en.wikipedia.org/wiki/Convolutional_code">convolutional codes</a> and the <a href="https://en.wikipedia.org/wiki/Viterbi_algorithm">Viterbi algorithm</a> (and Google <a href="https://en.wikipedia.org/wiki/PageRank">pagerank</a>, kinda)</li>
-			<li><a href="https://github.com/NunoDasNeves/slp-to-mp4">slp to mp4</a>: Convert <a href="https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee">Super Smash Bros Melee</a> replays (recorded with <a href="https://slippi.gg/">Project Slippi</a>) to video</li>
-			</ul>
-		</p>
+		<div class=title>
+			<div class=photo>
+				<div class=actual-photo></div>
+			</div>
+			<div class=title-text>
+				<h1>Nuno Das Neves</h1>
+				<h3>Software Engineer</h3>
+			</div>
+		</div>
+		<div class=main>
+			<h2>Projects</h2>
+			<div class=main-text>
+				<ul>
+					<li>
+						<h3><a href="https://www.lexaloffle.com/bbs/?pid=121011">Path of Agni</a></h3>
+						<div class=tags>game pico-8 lua 2d platformer fireballs difficult</div>
+						<p>A game about escaping a dungeon, one room at a time. <a href="https://www.lexaloffle.com/bbs/?pid=121011">Play on lexaloffle.com</a></p>
+						<div class=card-images><img src="images/pathofagni_2.gif"><img src="images/pathofagni_1.gif"></div>
+						<!--<iframe src="https://www.lexaloffle.com/bbs/widget.php?pid=pathofagni" allowfullscreen width="621"
+							height="513" style="border:none; overflow:hidden"></iframe>-->
+					</li>
+					<!--li><a href="https://nunodasneves.com/spite-and-malice-web" target="_blank">Spite and Malice</a>: A multiplayer
+						browser-based version of the classic card game <a
+							href="https://en.wikipedia.org/wiki/Spite_and_Malice">Spite and Malice</a>
+					</li-->
+					<li><a href="https://nunodasneves.itch.io/swamp-bubble-popper">Swamp Bubble Popper</a>: A game about
+						popping bubbles. In a swamp.</li>
+					<li><a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a>: C/C++ platform
+						layer for making games with SDL on Windows or Linux - based on code from <a
+							href="https://handmadehero.org/faq">Handmade Hero</a>
+					</li>
+					<li><a href="https://github.com/NunoDasNeves/rigid-body-sim">rigid body sim</a>: 2D rigid body simulator
+						made with <a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a> <br><img
+							src="images/rigid-body-sim.gif">
+					</li>
+					<li><a href="https://nunodasneves.github.io/interactive-algorithms/">interactive algorithms</a>: A
+						visualization of <a href="https://en.wikipedia.org/wiki/Convolutional_code">convolutional codes</a>
+						and the <a href="https://en.wikipedia.org/wiki/Viterbi_algorithm">Viterbi algorithm</a> (and Google
+						<a href="https://en.wikipedia.org/wiki/PageRank">pagerank</a>, kinda)
+					</li>
+					<li><a href="https://github.com/NunoDasNeves/slp-to-mp4">slp to mp4</a>: Convert <a
+							href="https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee">Super Smash Bros Melee</a> replays
+						(recorded with <a href="https://slippi.gg/">Project Slippi</a>) to video
+					</li>
+				</ul>
+				</p>
+			</div>
+		</div>
 	</div>
-	</body>
+</body>
+
 </html>
