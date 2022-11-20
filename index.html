@@ -31,8 +31,10 @@
 			--color-li-bg: rgb(41, 38, 37);
 			--color-font: rgb(218, 218, 218);
 			--color-tag: rgb(168, 168, 168);
-			--color-a: rgb(159, 249, 255);
-			--color-a-visited: rgb(65, 104, 177);
+			--color-date: rgb(168, 168, 168);
+			--color-a: rgb(168, 242, 255);
+			--color-a-visited: rgb(71, 122, 218);
+			--color-card-title: rgb(168, 242, 255);
 			--font-family-sans-serif: 'Roboto', Helvetica, 'Open Sans', sans-serif;
 			/*--font-family-serif: 'Lora', "Times New Roman", Times, serif;*/
 			--font-family-h3: 'RobotoSlab', "Times New Roman", Times, serif;
@@ -59,15 +61,9 @@
 			color: var(--color-font);
 			font-family: var(--font-family-sans-serif);
 		}
-		ul {
+		ul,li {
 			margin: 0;
 			padding: 0;
-		}
-		li {
-			list-style:none;
-			margin-bottom: 10px;
-			padding: 10pt;
-			background-color: var(--color-li-bg);
 		}
 		a {
 			color: var(--color-a);
@@ -112,27 +108,45 @@
 			background-size: contain;
 		}
 		.content {
-			margin: 0 200pt;
+			margin: auto;
+			max-width: fit-content;
 		}
-		.main {
-			/*justify-content: space-around;*/
+		.projects-title {
+			padding: 10pt;
 		}
-		.main-flex > div {
-			/*max-width: 50vw;*/
+		.cards {
+			display: flex;
+			flex-direction: column;
+		}
+		.cards > div {
+			list-style:none;
+			margin-bottom: 20px;
+			padding: 15pt 25pt;
+			background-color: var(--color-li-bg);
+		}
+		.cards > div > h3 > a:visited {
+			color: var(--color-card-title);
 		}
 		.tags {
 			font-family: var(--font-family-sans-serif);
-			font-size: medium;
+			font-size: 12pt;
 			color: var(--color-tag);
 		}
 		.card-images {
-			padding: 10px;
+			padding-top: 10px;
 			display: flex;
+			justify-content: center;
+			flex-flow: wrap;
 		}
 		.card-images > img {
-			padding-right: 10px;
+			padding: 8px;
+			
 		}
-
+		.date {
+			float: right;
+			color: var(--color-date);
+			font-size: 12pt;
+		}
 	</style>
 </head>
 
@@ -147,44 +161,79 @@
 				<h3>Software Engineer</h3>
 			</div>
 		</div>
-		<div class=main>
+		<div class=projects-title>
 			<h2>Projects</h2>
-			<div class=main-text>
-				<ul>
-					<li>
-						<h3><a href="https://www.lexaloffle.com/bbs/?pid=121011">Path of Agni</a></h3>
-						<div class=tags>game pico-8 lua 2d platformer fireballs difficult</div>
-						<p>A game about escaping a dungeon, one room at a time. <a href="https://www.lexaloffle.com/bbs/?pid=121011">Play on lexaloffle.com</a></p>
-						<div class=card-images><img src="images/pathofagni_2.gif"><img src="images/pathofagni_1.gif"></div>
-						<!--<iframe src="https://www.lexaloffle.com/bbs/widget.php?pid=pathofagni" allowfullscreen width="621"
-							height="513" style="border:none; overflow:hidden"></iframe>-->
-					</li>
-					<!--li><a href="https://nunodasneves.com/spite-and-malice-web" target="_blank">Spite and Malice</a>: A multiplayer
-						browser-based version of the classic card game <a
-							href="https://en.wikipedia.org/wiki/Spite_and_Malice">Spite and Malice</a>
-					</li-->
-					<li><a href="https://nunodasneves.itch.io/swamp-bubble-popper">Swamp Bubble Popper</a>: A game about
-						popping bubbles. In a swamp.</li>
-					<li><a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a>: C/C++ platform
-						layer for making games with SDL on Windows or Linux - based on code from <a
-							href="https://handmadehero.org/faq">Handmade Hero</a>
-					</li>
-					<li><a href="https://github.com/NunoDasNeves/rigid-body-sim">rigid body sim</a>: 2D rigid body simulator
-						made with <a href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a> <br><img
-							src="images/rigid-body-sim.gif">
-					</li>
-					<li><a href="https://nunodasneves.github.io/interactive-algorithms/">interactive algorithms</a>: A
-						visualization of <a href="https://en.wikipedia.org/wiki/Convolutional_code">convolutional codes</a>
-						and the <a href="https://en.wikipedia.org/wiki/Viterbi_algorithm">Viterbi algorithm</a> (and Google
-						<a href="https://en.wikipedia.org/wiki/PageRank">pagerank</a>, kinda)
-					</li>
-					<li><a href="https://github.com/NunoDasNeves/slp-to-mp4">slp to mp4</a>: Convert <a
-							href="https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee">Super Smash Bros Melee</a> replays
-						(recorded with <a href="https://slippi.gg/">Project Slippi</a>) to video
-					</li>
-				</ul>
-				</p>
-			</div>
+		</div>
+		<div class=cards>
+				<div>
+					<p class=date>18 November 2022</p>
+					<h3><a target=_blank href="https://www.lexaloffle.com/bbs/?pid=121011">Path of Agni</a></h3>
+					<div class=tags>pico-8 lua</div>
+					<p>
+						A game about escaping a dungeon, one room at a time. <a target=_blank href="https://www.lexaloffle.com/bbs/?pid=121011">Play on lexaloffle.com</a>
+					</p>
+					<div class=card-images>
+						<img src="images/pathofagni_2.gif">
+						<img src="images/pathofagni_1.gif">
+					</div>
+					<!--<iframe src="https://www.lexaloffle.com/bbs/widget.php?pid=pathofagni" allowfullscreen width="621"
+						height="513" style="border:none; overflow:hidden"></iframe>-->
+				</div>
+				<!--div class=card><a href="https://nunodasneves.com/spite-and-malice-web" target="_blank">Spite and Malice</a>: A multiplayer
+					browser-based version of the classic card game <a
+						href="https://en.wikipedia.org/wiki/Spite_and_Malice">Spite and Malice</a>
+				</div-->
+				<div>
+					<p class=date>18 April 2021</p>
+					<h3><a target=_blank href="https://nunodasneves.itch.io/swamp-bubble-popper">Swamp Bubble Popper</a></h3>
+					<div class=tags>javascript</div>
+					<p>
+						A game about popping bubbles. In a swamp. <a target=_blank href="https://nunodasneves.itch.io/swamp-bubble-popper">Play on itch.io</a>
+					</p>
+					<div class=card-images>
+						<img src="images/sbp.png">
+					</div>
+				</div>
+				<div>
+					<p class=date>October 2020</p>
+					<h3><a target=_blank href="https://github.com/NunoDasNeves/rigid-body-sim">rigid body sim</a></h3>
+					<div class=tags>C/C++ opengl 2d</div>
+					<p>
+						2D rigid body simulator
+						made with <a target=_blank href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a>
+					</p>
+					<div class=card-images>
+						<img src="images/rigid-body-sim.gif">
+					</div>
+				</div>
+				<div>
+					<p class=date>Jan 2020</p>
+					<h3><a target=_blank href="https://github.com/NunoDasNeves/sdl-game-starter">sdl game starter</a></h3>
+					<div class=tags>C/C++ SDL</div>
+					<p>
+						C/C++ platform layer for making games with SDL on Windows or Linux - based on code from <a target=_blank href="https://handmadehero.org/faq">Handmade Hero</a>
+					</p>
+				</div>
+				<div>
+					<p class=date>September 2019</p>
+					<h3><a target=_blank href="https://github.com/NunoDasNeves/slp-to-mp4">slp to mp4</a></h3>
+					<div class=tags>python automation dolphin ffmpeg</div>
+					<p>
+						Convert <a target=_blank href="https://en.wikipedia.org/wiki/Super_Smash_Bros._Melee">Super Smash Bros Melee</a> replays
+						(recorded with <a target=_blank href="https://slippi.gg/">Project Slippi</a>) to video
+					</p>
+				</div>
+				<div>
+					<p class=date>November 2018</p>
+					<h3><a target=_blank href="https://nunodasneves.github.io/interactive-algorithms/">interactive algorithms</a></h3>
+					<div class=tags>vue javascript diagrams visualization</div>
+					<p>
+						A visualization of <a target=_blank href="https://en.wikipedia.org/wiki/Convolutional_code">convolutional codes</a>
+						and the <a target=_blank href="https://en.wikipedia.org/wiki/Viterbi_algorithm">Viterbi algorithm</a> (and Google
+						<a target=_blank href="https://en.wikipedia.org/wiki/PageRank">pagerank</a>, kinda)
+					</p>
+				</div>
+			</p>
 		</div>
 	</div>
 </body>
