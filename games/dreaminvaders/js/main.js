@@ -1,6 +1,8 @@
 import * as Game from "./game.js";
 import * as State from "./state.js";
 import * as Render from "./render.js";
+import * as Assets from "./assets.js";
+import { debug } from "./data.js";
 
 window.onload = start;
 
@@ -26,9 +28,10 @@ function gameLoop(timeElapsed)
     while (timeSinceLastUpdate >= frameTime) {
         timeSinceLastUpdate -= frameTime;
         ticks++;
+        debug.numUpdates++;
         Game.update(timeElapsed, ticks * frameTime, frameTime);
     }
-    Render.draw();
+    Render.draw(timeElapsed, timeDelta);
 }
 
 function initEvents()
@@ -53,6 +56,9 @@ function initEvents()
     });
 
     document.addEventListener('keydown', function (event) {
+        if (event.key == 'Tab') {
+            event.preventDefault();
+        }
         State.updateKey(event.key, true);
     });
 
@@ -66,6 +72,7 @@ function start()
 {
     Game.init();
     Render.init();
+    Assets.init();
     initEvents();
 
     window.requestAnimationFrame(gameLoop);

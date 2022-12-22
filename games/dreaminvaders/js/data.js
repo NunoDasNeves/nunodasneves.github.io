@@ -1,18 +1,28 @@
+import * as utils from "./util.js";
+Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
+
 /*
  * Static data
  */
 
 export const debug = {
+    canPause: true,
+    paused: false,
     drawState: false,
-    drawRadii: false,
+    drawCollision: false,
     drawSight: false,
     drawAngle: false,
-    drawCapsule: true,
-    drawForces: true,
     drawSwing: true,
     drawLaneSegs: false,
     drawBezierPoints: false,
     drawClickBridgeDebugArrow: false,
+    drawFPS: true,
+    fps: 0,
+    fpsCounter: 0,
+    fpsTime: 0,
+    drawNumUpdates: true,
+    numUpdates: 0,
+    avgUpdates: 0,
 }
 
 export const params = Object.freeze(
@@ -64,6 +74,84 @@ export const HITSTATE = Object.freeze({
     ALIVE: 0,
     DEAD: 1,
 });
+export const ANIM = Object.freeze({
+    IDLE: 0,
+    WALK: 1,
+    ATK_AIM: 2,
+    ATK_SWING: 3,
+    ATK_RECOVER: 4,
+    DIE: 5,
+    FALL: 6,
+});
+
+// not frozen because it'll get updated when assets are loaded
+export const sprites = (()=>{
+const obj = {
+    chogoringu: {
+        filename: "chogoringu.png",
+        imgAsset: null, // not really needed here; populated by assets.js
+        // dimensions of one frame of animation
+        width: 16,
+        height: 24,
+        centerOffset: vec(0,8), // additional offset so we draw it in the right spot in relation to entity position
+        rows: 2, // not including flipped frames; used to get flip offset
+        anims: {
+            // all the animations will be populated by defaults if not specified
+            [ANIM.IDLE]: {
+                // start at this row and col in the spritesheet
+                row: 0, // defaults to 0; one animation per row
+                col: 0, // defaults to 0; one frame per col
+                // used by game logic to loop the anim etc
+                frames: 2, // defaults to 1
+                frameDur: 400, // defaults to 1000
+            },
+            // omitting optional fields in these
+            [ANIM.WALK]: {
+                row: 1,
+                frames: 4,
+                frameDur: 100,
+            },
+            [ANIM.ATK_SWING]: {
+                frames: 2,
+                frameDur: 400,
+            },
+        },
+    },
+    tank: {
+        filename: "tank.png",
+        width: 64,
+        height: 64,
+        centerOffset: vec(0,16),
+        rows: 1,
+        anims: { /* use defaults; see above */ },
+    },
+};
+// put in the default anims and stuff
+const defaultAnim = {
+    row: 0,
+    col: 0,
+    frames: 1,
+    frameDur: 1000,
+};
+for (const sprite of Object.values(obj)) {
+    sprite.imgAsset = null;
+    // add all the missing anims
+    for (const animName of Object.values(ANIM)) {
+        if (!sprite.anims[animName]) {
+            sprite.anims[animName] = {};
+        }
+    }
+    // add all the missing anim properties
+    for (const anim of Object.values(sprite.anims)) {
+        for (const [key, defaultVal] of Object.entries(defaultAnim)) {
+            if (!anim[key]) {
+                anim[key] = defaultVal;
+            }
+        }
+    }
+}
+return obj;
+})();
 
 export const weapons = Object.freeze({
     none: {
@@ -87,7 +175,8 @@ export const weapons = Object.freeze({
 export const units = Object.freeze({
     base: {
         weapon: weapons.none,
-        speed: 0,
+        maxSpeed: 0,
+        accel: 0,
         angSpeed: 0,
         maxHp: 1000,
         sightRadius: 0,
@@ -97,13 +186,13 @@ export const units = Object.freeze({
         defaultAiState: AISTATE.DO_NOTHING,
         lighthouseDamage: 0,
         draw: {
-            shape: "circle",
-            strokeColor: "red",
+            image: "lighthouse",
         }
     },
-    circle: {
+    chogoringu: {
         weapon: weapons.elbow,
-        speed: 3,
+        maxSpeed: 3,
+        accel: 0.15,
         angSpeed: 1,
         maxHp: 3,
         sightRadius: params.laneWidth*0.75,
@@ -113,24 +202,28 @@ export const units = Object.freeze({
         defaultAiState: AISTATE.PROCEED,
         lighthouseDamage: 5,
         draw: {
-            shape: "circle",
-            fillColor: "TEAM",
-        }
+            sprite: sprites.chogoringu,
+        },
     },
-    boid: {
-        weapon: weapons.none,
-        speed: 1,
-        angspeed: 0.5,
-        maxHp: 1,
-        sightRadius: params.laneWidth,
-        radius:10,
+    tank: {
+        weapon: weapons.elbow,
+        maxSpeed: 3,
+        accel: 0.05,
+        angSpeed: 1,
+        maxHp: 3,
+        sightRadius: params.laneWidth*0.75,
+        radius: 20,
         collides: true,
-        canFall: false,
-        defaultAiState: AISTATE.DO_NOTHING,
-        lighthouseDamage: 0,
+        canFall: true,
+        defaultAiState: AISTATE.PROCEED,
+        lighthouseDamage: 5,
         draw: {
-            shape: "triangle",
-            fillColor: "TEAM",
-        }
+            sprite: sprites.tank,
+        },
     }
 });
+
+export const unitHotKeys = {
+    'q': units.chogoringu,
+    'w': units.tank,
+};

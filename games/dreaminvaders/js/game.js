@@ -1,8 +1,8 @@
 import * as utils from "./util.js";
 Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
 
-import { debug, params, AISTATE, TEAM, HITSTATE, ATKSTATE, weapons, units } from "./data.js";
-import { enemyTeam, laneStart, laneEnd, gameState, INVALID_ENTITY_INDEX, EntityRef, spawnEntity, spawnEntityInLane, updateGameInput, initGameState, cameraToWorld, cameraVecToWorld, worldToCamera, worldVecToCamera } from './state.js'
+import { debug, params, AISTATE, TEAM, HITSTATE, ATKSTATE, ANIM, weapons, units, unitHotKeys } from "./data.js";
+import { enemyTeam, laneStart, laneEnd, gameState, INVALID_ENTITY_INDEX, EntityRef, spawnEntity, spawnEntityInLane, updateGameInput, initGameState, cameraToWorld, cameraVecToWorld, worldToCamera, worldVecToCamera } from './state.js';
 
 /*
  * Game init and update functions
@@ -238,21 +238,20 @@ function getAvoidanceForce(i, seekForce)
 
 function getSeparationForce(i)
 {
-    const { exists, team, unit, hp, pos, vel, angle, angVel, state, lane, target, atkState, physState, boidState } = gameState.entities;
-    const bState = boidState[i];
+    const { exists, team, unit, hp, pos, vel, angle, angVel, state, lane, target, atkState, physState } = gameState.entities;
     const separationForce = vec();
     let separationCount = 0;
     for (let j = 0; j < exists.length; ++j) {
         if (!exists[j]) {
             continue;
         }
-        if (unit[j] != units.boid) {
+        if (!physState[i].canCollide) {
             continue;
         }
         if (i == j) {
             continue;
         }
-        const separationRadius = unit[i].radius + unit[j].radius;
+        const separationRadius = unit[i].radius + unit[j].radius + 10;
         const dist = getDist(pos[i], pos[j]);
         if (dist > separationRadius) {
             continue;
@@ -307,7 +306,7 @@ function updateBoidState()
 
 function updateAiState()
 {
-    const { exists, team, unit, hp, pos, vel, angle, angVel, state, lane, target, aiState, atkState, physState } = gameState.entities;
+    const { exists, team, unit, hp, pos, accel, angle, angVel, state, lane, target, aiState, atkState, physState } = gameState.entities;
 
     for (let i = 0; i < exists.length; ++i) {
         if (!exists[i]) {
@@ -328,7 +327,7 @@ function updateAiState()
             {
                 if (distToEnemyBase < unit[i].radius) {
                     aiState[i].state = AISTATE.DO_NOTHING;
-                    vecClear(vel[i]);
+                    vecClear(accel[i]);
                     break;
                 }
                 if (distToEnemyBase < params.safePathDistFromBase) {
@@ -423,7 +422,7 @@ function updateAiState()
                     // go parallel to the bridge line
                     goDir = vecNormalize(vecSub(nextPoint, currPoint));
                 }
-                vel[i] = vecMul(goDir, Math.min(unit[i].speed, distToEnemyBase));
+                accel[i] = vecMul(goDir, unit[i].accel);
                 target[i].invalidate();
                 atkState[i].state = ATKSTATE.NONE;
                 break;
@@ -436,7 +435,7 @@ function updateAiState()
                 const distToTarget = vecLen(toTarget);
                 if ( !almostZero(distToTarget) ) {
                     const dir = vecMul(toTarget, 1/distToTarget);
-                    vel[i] = vecMul(dir, Math.min(unit[i].speed, distToTarget));
+                    accel[i] = vecMul(dir, Math.min(unit[i].accel, distToTarget));
                 }
                 break;
             }
@@ -444,7 +443,7 @@ function updateAiState()
             {
                 const t = target[i].getIndex();
                 console.assert(t != INVALID_ENTITY_INDEX);
-                vecClear(vel[i]); // stand still
+                vecClear(accel[i]); // stand still
             }
             break;
         }
@@ -463,7 +462,7 @@ function keyPressed(k)
 
 function updatePhysicsState()
 {
-    const { exists, team, unit, hp, pos, vel, angle, angVel, state, lane, target, aiState, atkState, physState, hitState } = gameState.entities;
+    const { exists, team, unit, hp, pos, vel, accel, angle, angVel, state, lane, target, aiState, atkState, physState, hitState } = gameState.entities;
 
     // very simple collisions, just reset position
     const pairs = [];
@@ -473,6 +472,13 @@ function updatePhysicsState()
             continue;
         }
         physState[i].colliding = false;
+
+        // friction: decelerate automatically if velocity with no acceleration
+        if (!vecAlmostZero(vel[i]) && vecAlmostZero(accel[i])) {
+            accel[i] = vecSetMag(vecMul(vel[i], -1), unit[i].accel);
+        }
+        vecAddTo(vel[i], accel[i]);
+        vecClampMag(vel[i], 0, unit[i].maxSpeed);
         vecAddTo(pos[i], vel[i]);
     };
 
@@ -483,15 +489,25 @@ function updatePhysicsState()
         physState[j].colliding = true;
         const dir = vecSub(pos[j],pos[i]);
         const len = vecLen(dir);
-        const correction = (unit[i].radius + unit[j].radius - len) / 2;
         if ( almostZero(len) ) {
             dir = vec(1,0);
         } else {
             vecMulBy(dir, 1/len);
         }
+        const veliLen = vecLen(vel[i])
+        const veljLen = vecLen(vel[j])
+        const velSum = veliLen + veljLen;
+        let velif = 0.5;
+        let veljf = 0.5;
+        if (!almostZero(velSum)) {
+            velif = veliLen / velSum;
+            veljf = veljLen / velSum;
+        }
+        const correctioni = (unit[i].radius + unit[j].radius - len) * velif;
+        const correctionj = (unit[i].radius + unit[j].radius - len) * veljf;
+        const corrPos = vecMul(dir, correctionj);
         const dirNeg = vecMul(dir, -1);
-        const corrPos = vecMul(dir, correction);
-        const corrNeg = vecMul(dirNeg, correction);
+        const corrNeg = vecMul(dirNeg, correctioni);
 
         vecAddTo(pos[i], corrNeg);
         vecAddTo(pos[j], corrPos);
@@ -629,6 +645,44 @@ function updateAtkState(timeDeltaMs)
     });
 }
 
+function updateAnimState(timeDeltaMs)
+{
+    const { exists, unit, aiState, atkState, animState } = gameState.entities;
+
+    forAllEntities((i) => {
+        const aState = animState[i];
+        const sprite = unit[i].draw.sprite;
+        if (!sprite) {
+            return;
+        }
+        aState.timer -= timeDeltaMs;
+        // TODO this properly... this is all placeholder
+        switch (aiState[i].state) {
+            case AISTATE.PROCEED:
+            case AISTATE.CHASE:
+            {
+                aState.anim = ANIM.WALK;
+                break;
+            }
+            case AISTATE.ATTACK:
+            {
+                aState.anim = ANIM.IDLE;
+                break;
+            }
+            default:
+            {
+                aState.anim = ANIM.IDLE;
+                break;
+            }
+        }
+        const anim = sprite.anims[aState.anim];
+        if (aState.timer <= 0) {
+            aState.timer += anim.frameDur;
+            aState.frame = (aState.frame + 1) % anim.frames;
+        }
+    });
+}
+
 function updateGame(timeDeltaMs)
 {
     const { exists, freeable } = gameState.entities;
@@ -637,9 +691,7 @@ function updateGame(timeDeltaMs)
     updatePhysicsState();
     updateAtkState(timeDeltaMs);
     updateAiState();
-
-    // to remove/factor out
-    updateBoidState();
+    updateAnimState(timeDeltaMs);
 
     // this should come right before reap
     updateHitState(timeDeltaMs);
@@ -721,13 +773,8 @@ function pointNearLineSegs(point, lineSegs)
 export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix debug pause */, timeDeltaMs)
 {
     // TODO this will mess up ticksMs if we ever use it for anything, so don't for now
-    if (keyPressed('p')) {
-        gameState.debugPause = !gameState.debugPause;
-    }
-    if (gameState.debugPause) {
-        // frame advance
-        if (!keyPressed('.')) {
-        }
+    if (keyPressed('p') && debug.canPause) {
+        debug.paused = !debug.paused;
     }
 
     if (mouseLeftPressed()) {
@@ -747,17 +794,13 @@ export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix 
         gameState.player.debugClickedPoint = vecClone(gameState.input.mousePos);
         gameState.player.debugClosestLanePoint = minStuff.point;
     }
-    if (keyPressed('q')) {
-        spawnEntityInLane(gameState.lanes[gameState.player.laneSelected], TEAM.ORANGE, units.circle);
+    if (keyPressed('Tab')) {
+        gameState.player.debugTeam = enemyTeam(gameState.player.debugTeam);
     }
-    if (keyPressed('w')) {
-        spawnEntityInLane(gameState.lanes[gameState.player.laneSelected], TEAM.BLUE, units.circle);
-    }
-    if (keyPressed('e')) {
-        spawnEntity(gameState.input.mousePos, TEAM.BLUE, units.boid);
-    }
-    if (keyPressed('r')) {
-        spawnEntity(gameState.input.mousePos, TEAM.ORANGE, units.boid);
+    for (const [key, unit] of Object.entries(unitHotKeys)) {
+        if (keyPressed(key)) {
+            spawnEntityInLane(gameState.lanes[gameState.player.laneSelected], gameState.player.debugTeam, unit);
+        }
     }
     // camera controls
     gameState.camera.scale = clamp(gameState.camera.scale + gameState.input.mouseScrollDelta, 0.1, 5);
@@ -768,7 +811,7 @@ export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix 
         }
     }
 
-    if (!gameState.debugPause || keyPressed('.')) {
+    if (!debug.paused || keyPressed('.')) {
         updateGame(timeDeltaMs);
     }
 

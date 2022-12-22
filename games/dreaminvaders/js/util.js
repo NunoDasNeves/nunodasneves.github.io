@@ -50,7 +50,7 @@ export function cubicBezierPoint(ctrlPoints, t)
 
 export function vecAlmostZero(v)
 {
-    return Math.abs(v.x) < 0.0001 || Math.abs(v.y) < 0.0001;
+    return Math.abs(v.x) < 0.0001 && Math.abs(v.y) < 0.0001;
 }
 
 // Functions that return a new vector object
@@ -180,6 +180,12 @@ export function vecClampMag(v, min, max)
 {
     const len = vecLen(v);
     if ( almostZero(len) ) {
+        // if min is zero, then just zero and return
+        if ( almostZero(min) ) {
+            v.x = 0;
+            v.y = 0;
+            return v;
+        }
         console.error("Tried to divide by 0");
         return vecClear(v);
     }

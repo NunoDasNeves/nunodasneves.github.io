@@ -1,7 +1,7 @@
 import * as utils from "./util.js";
 Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
 
-import { params, AISTATE, HITSTATE, TEAM, ATKSTATE, weapons, units } from "./data.js";
+import { params, AISTATE, HITSTATE, TEAM, ATKSTATE, ANIM, weapons, units } from "./data.js";
 
 /*
  * Game state init and related helpers
@@ -79,7 +79,7 @@ export class EntityRef {
 
 export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
 {
-    const { exists, freeable, id, nextFree, team, unit, hp, pos, vel, accel, angle, angVel, state, target, lane, atkState, aiState, physState, boidState, hitState } = gameState.entities;
+    const { exists, freeable, id, nextFree, team, unit, hp, pos, vel, accel, angle, angVel, state, target, lane, atkState, aiState, physState, boidState, hitState, animState } = gameState.entities;
 
     if (getCollidingWithCircle(aPos, aUnit.radius).length > 0) {
         console.warn("Can't spawn entity there");
@@ -132,6 +132,12 @@ export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
         canCollide: unit[idx].collides,
         colliding: false,
         canFall: unit[idx].canFall,
+    };
+    animState[idx]  = {
+        anim: ANIM.IDLE,
+        frame: 0,
+        timer: 0,
+        loop: true,
     };
     // gonna be folded in or removed at some point
     boidState[idx]  = {
@@ -208,6 +214,7 @@ export function initGameState()
             physState: [],
             boidState: [],
             hitState: [],
+            animState: [],
         },
         freeSlot: INVALID_ENTITY_INDEX,
         nextId: 0n, // bigint
@@ -237,7 +244,6 @@ export function initGameState()
         },
         input: makeInput(),
         lastInput: makeInput(),
-        debugPause: false,
     };
     // compute the lane start and end points (bezier curves)
     // line segements approximating the curve (for gameplay code) + paths to the lighthouse

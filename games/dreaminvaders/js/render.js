@@ -1,71 +1,126 @@
 import * as utils from "./util.js";
 Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
 
-import { debug, params, AISTATE, TEAM, ATKSTATE, weapons, units, HITSTATE } from "./data.js";
+import { debug, params, AISTATE, TEAM, ATKSTATE, weapons, units, HITSTATE, sprites } from "./data.js";
 import { enemyTeam, laneStart, laneEnd, gameState, INVALID_ENTITY_INDEX, EntityRef, updateCameraSize, cameraToWorld, cameraVecToWorld, worldToCamera, worldVecToCamera } from './state.js'
-export let canvas = null;
+import { assets } from "./assets.js";
+
+let canvas = null;
 let context = null;
 
-function drawCircleUnit(pos, unit, scale, strokeColor, fillColor)
+function drawImage(name, pos, fromCenter = true)
 {
-    if (strokeColor) {
-        strokeCircle(pos, unit.radius * scale, 2, strokeColor);
+    const asset = assets.images[name];
+    const drawWidth = asset.width / gameState.camera.scale;
+    const drawHeight = asset.height / gameState.camera.scale;
+    const drawPos = worldToCamera(pos.x, pos.y);
+    const offset = vec();
+    if (fromCenter) {
+        vecSubFrom(offset, vecAdd(vec(asset.width/2, asset.height/2), asset.centerOffset));
     }
-    if (fillColor) {
-        fillCircle(pos, unit.radius * scale, fillColor);
+
+    if (asset.loaded) {
+        vecMulBy(offset, 1/gameState.camera.scale);
+        vecAddTo(drawPos, offset);
+        context.imageSmoothingEnabled = false;
+        context.drawImage(asset.img, drawPos.x, drawPos.y, drawWidth, drawHeight);
+    } else {
+        const rectPos = vecAdd(pos, offset);
+        fillRectangle(rectPos, asset.width, asset.height, "#000000", false);
     }
 }
 
-function drawTriangleUnit(pos, angle, unit, scale, fillColor)
+function drawSprite(sprite, row, col, pos)
 {
-    fillEquilateralTriangle(pos, angle, unit.radius * scale, unit.radius * 1.5 * scale, fillColor);
+    const asset = sprite.imgAsset;
+    const drawWidth = sprite.width / gameState.camera.scale;
+    const drawHeight = sprite.height / gameState.camera.scale;
+    const drawPos = worldToCamera(pos.x, pos.y);
+    const offset = vecNegate(vecAdd(vec(sprite.width/2, sprite.height/2), sprite.centerOffset));
+
+    if (asset.loaded) {
+        vecMulBy(offset, 1/gameState.camera.scale);
+        vecAddTo(drawPos, offset);
+        const sourceX = col * sprite.width;
+        const sourceY = row * sprite.height;
+        context.imageSmoothingEnabled = false;
+        context.drawImage(asset.img, sourceX, sourceY, sprite.width, sprite.height, drawPos.x, drawPos.y, drawWidth, drawHeight);
+    } else {
+        // fillRectangle takes pos in world coords
+        const rectPos = vecAdd(pos, offset);
+        fillRectangle(rectPos, sprite.width, sprite.height, "#000000", false);
+    }
+}
+
+function makeOffscreenCanvas(width, height)
+{
+    const c = new OffscreenCanvas(width, height);
+    const ctx = c.getContext("2d");
+    return [c, ctx];
+}
+
+function drawSpriteWithOverlay(sprite, row, col, pos, colorOverlay)
+{
+    // TODO
+    drawSprite(sprite, row, col, pos);
+}
+
+function drawUnitAnim(i, alpha, colorOverlay)
+{
+    const { team, unit, pos, angle, animState } = gameState.entities;
+    const { anim, frame, timer, loop } = animState[i];
+    let flip = false;
+    if (vecFromAngle(angle[i]).x < 0) {
+        flip = true;
+    }
+    const sprite = unit[i].draw.sprite;
+    const animObj = sprite.anims[anim];
+    const col = animObj.col + frame;
+    const row = animObj.row + (flip ? sprite.rows : 0);
+    context.globalAlpha = alpha;
+    if (colorOverlay != null) {
+        drawSpriteWithOverlay(sprite, row, col, pos[i], colorOverlay);
+    } else {
+        drawSprite(sprite, row, col, pos[i]);
+    }
+    context.globalAlpha = 1;
 }
 
 function drawUnit(i)
 {
-    const { team, unit, pos, vel, angle, target, hp, aiState, atkState, physState, boidState, hitState } = gameState.entities;
+    const { team, unit, pos, vel, angle, target, hp, aiState, atkState, physState, hitState } = gameState.entities;
 
-    let unitScale = 1;
-    let unitStrokeColor = unit[i].draw.strokeColor;
-    if (unitStrokeColor == "TEAM") {
-        unitStrokeColor = params.teamColors[team[i]];
+    if (unit[i].draw.image) {
+        drawImage(unit[i].draw.image, pos[i]);
+        return;
     }
-    let unitFillColor = unit[i].draw.fillColor;
-    if (unitFillColor == "TEAM") {
-        unitFillColor = params.teamColors[team[i]];
-    }
-    if (hitState[i].state == HITSTATE.DEAD) {
-        const f = hitState[i].deadTimer / params.deathTimeMs;
-        unitFillColor = `rgba(100,100,100,${f})`;
-        if (hitState[i].fallTimer > 0) {
-            unitScale = (1 - params.fallSizeReduction) + (hitState[i].fallTimer / params.fallTimeMs) * params.fallSizeReduction;
+
+    if (unit[i].draw.sprite) {
+        let alpha = 1;
+        let colorOverlay = null;
+        if (hitState[i].state == HITSTATE.DEAD) {
+            const f = hitState[i].deadTimer / params.deathTimeMs;
+            alpha = f;
+            if (hitState[i].fallTimer > 0) {
+                //unitScale = (1 - params.fallSizeReduction) + (hitState[i].fallTimer / params.fallTimeMs) * params.fallSizeReduction;
+            }
+        } else {
+            strokeCircle(pos[i], unit[i].radius, 1, params.teamColors[team[i]]);
         }
-    }
-    // draw basic shape
-    switch (unit[i].draw.shape) {
-        case "circle":
-            drawCircleUnit(pos[i], unit[i], unitScale, unitStrokeColor, unitFillColor);
-            break;
-        case "triangle":
-            drawTriangleUnit(pos[i], angle[i], unit[i], unitScale, unitFillColor);
-            break;
-        default:
-            console.error("invalid unit.draw");
-            return;
-    }
-    // bloood
-    if (hitState[i].hitTimer > 0) {
-        const f = clamp(hitState[i].hitTimer / params.hitFadeTimeMs, 0, 1);
-        const fill = `rgba(255, 0, 0, ${f})`
-        fillCircle(pos[i], unit[i].radius, fill);
+        // flash red when hit
+        if (hitState[i].hitTimer > 0) {
+            const f = clamp(hitState[i].hitTimer / params.hitFadeTimeMs, 0, 1);
+            colorOverlay = `rgba(255, 0, 0, ${f})`
+        }
+        drawUnitAnim(i, alpha, colorOverlay);
     }
     // don't draw debug stuff for base
     if (unit[i] == units.base) {
         return;
     }
     // all this stuff is debug only, later we wanna draw sprites
-    if (debug.drawRadii) {
-        strokeCircle(pos[i], unit[i].radius, 1, physState[i].colliding ? 'red' : '#880000');
+    if (debug.drawCollision && physState[i].colliding) {
+        strokeCircle(pos[i], unit[i].radius, 1, 'red');
     }
     if (debug.drawSight && unit[i].sightRadius > 0)
     {
@@ -79,20 +134,6 @@ function drawUnit(i)
         const color = aiState[i].state == AISTATE.PROCEED ? 'blue' : aiState[i].state == AISTATE.CHASE ? 'yellow' : 'red';
         const off = vecMulBy(vecFromAngle(angle[i]), -unit[i].radius*0.75);
         fillCircle(vecAdd(pos[i], off), unit[i].radius/3, color);
-    }
-    if (unit[i] == units.boid)
-    {
-        if (debug.drawCapsule) // && unit[i].avoiding)
-        {
-            strokeHalfCapsule(pos[i], unit[i].sightRadius, unit[i].radius, vecToAngle(boidState[i].seekForce), 1, boidState[i].avoiding ? '#00ff00' : 'green');
-        }
-        if (debug.drawForces)
-        {
-            if (boidState[i].avoiding) {
-                drawArrow(pos[i], vecAdd(pos[i], vecMul(boidState[i].avoidanceForce, 20)), 1, 'red');
-            }
-            drawArrow(pos[i], vecAdd(pos[i], vecMul(boidState[i].seekForce, 20)), 1, 'white');
-        }
     }
     if (debug.drawSwing) {
         const t = target[i].getIndex();
@@ -131,7 +172,7 @@ function drawUnit(i)
 
 function drawHpBar(i)
 {
-    const { team, unit, pos, vel, angle, target, hp, atkState, physState, boidState, hitState } = gameState.entities;
+    const { team, unit, pos, vel, angle, target, hp, atkState, physState, hitState } = gameState.entities;
     // hp bar
     if (hitState[i].hpBarTimer > 0) {
         const hpBarWidth = unit[i].radius*2;
@@ -378,7 +419,7 @@ export function getBoundingClientRect()
     return canvas.getBoundingClientRect();
 }
 
-export function draw()
+export function draw(realTimeMs, timeDeltaMs)
 {
     updateCameraSize(canvas.width, canvas.height);
 
@@ -397,7 +438,7 @@ export function draw()
         drawLane(gameState.lanes[i], gameState.player.laneSelected == i);
     }
 
-    const { exists, team, unit, pos, angle, physState, boidState, hitState } = gameState.entities;
+    const { exists, team, unit, pos, angle, physState, hitState } = gameState.entities;
     // TODO bit of hack to draw alive units on top of dead ones
     // draw dead
     for (let i = 0; i < exists.length; ++i) {
@@ -428,6 +469,38 @@ export function draw()
             "#ff0000"
         );
     }
+    // compute fps and updates
+    debug.fpsTime += timeDeltaMs;
+    debug.fpsCounter++;
+    if (debug.fpsTime >= 1000) {
+        debug.fps = 1000*debug.fpsCounter/debug.fpsTime;
+        debug.avgUpdates = debug.numUpdates/debug.fpsCounter;
+        debug.fpsTime = 0;
+        debug.fpsCounter = 0;
+        debug.numUpdates = 0;
+    }
+    if (debug.drawFPS) {
+        const fpsStr = `FPS: ${Number(debug.fps).toFixed(2)}`;
+        drawDebugUIText(fpsStr, vec(10,20), 'white');
+    }
+    if (debug.drawNumUpdates) {
+        const updatesStr= `updates/frame: ${Number(debug.avgUpdates).toFixed(2)}`;
+        drawDebugUIText(updatesStr, vec(10,40), 'white');
+    }
+    drawDebugUIText("team", vec(10,60), params.teamColors[gameState.player.debugTeam]);
+}
+
+function drawDebugUIText(string, screenPos, fillStyle)
+{
+    context.font = "20px sans-serif";
+    // draw stroke behind text so we can make a nice outline
+    context.strokeStyle = 'black';
+    context.setLineDash([]);
+    context.lineWidth = 3;
+    context.strokeText(string, screenPos.x, screenPos.y);
+    context.fillStyle = fillStyle;
+    context.textAlign = 'left';
+    context.fillText(string, screenPos.x, screenPos.y);
 }
 
 export function init()
