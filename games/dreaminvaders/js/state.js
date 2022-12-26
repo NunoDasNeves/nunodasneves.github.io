@@ -1,16 +1,11 @@
 import * as utils from "./util.js";
 Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
 
-import { params, AISTATE, HITSTATE, TEAM, ATKSTATE, ANIM, weapons, units } from "./data.js";
+import { params, AISTATE, HITSTATE, ATKSTATE, ANIM, weapons, units } from "./data.js";
 
 /*
  * Game state init and related helpers
  */
-
-export function enemyTeam(team)
-{
-    return (team % 2) + 1;
-}
 
 export function closestPoint(arr, pos)
 {
@@ -24,23 +19,6 @@ export function closestPoint(arr, pos)
         }
     }
     return minPoint;
-}
-
-export function laneStart(lane, team)
-{
-    const base = gameState.islands[team];
-    return vecClone(closestPoint(lane.pathPoints, base.pos));
-}
-
-export function laneSpawnPoint(lane, team)
-{
-    return vecClone(lane.spawns[team]);
-}
-
-export function laneEnd(lane, team)
-{
-    const base = gameState.islands[enemyTeam(team)];
-    return vecClone(closestPoint(lane.pathPoints, base.pos));
 }
 
 export let gameState = null;
@@ -77,9 +55,9 @@ export class EntityRef {
     }
 }
 
-export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
+export function spawnEntity(aPos, aTeam, aColorIdx, aUnit, aHomeIsland = null, aLane = null)
 {
-    const { exists, freeable, id, nextFree, team, unit, hp, pos, vel, accel, angle, angVel, state, target, lane, atkState, aiState, physState, boidState, hitState, animState } = gameState.entities;
+    const { exists, freeable, id, nextFree, homeIsland, team, color, colorIdx, unit, hp, pos, vel, accel, angle, angVel, target, lane, atkState, aiState, physState, boidState, hitState, animState, debugState } = gameState.entities;
 
     if (getCollidingWithCircle(aPos, aUnit.radius).length > 0) {
         console.warn("Can't spawn entity there");
@@ -102,7 +80,10 @@ export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
     id[idx]         = gameState.nextId;
     gameState.nextId++;
     nextFree[idx]   = INVALID_ENTITY_INDEX;
+    homeIsland[idx] = aHomeIsland;
     team[idx]       = aTeam;
+    color[idx]      = params.playerColors[aColorIdx];
+    colorIdx[idx]   = aColorIdx;
     unit[idx]       = aUnit;
     hp[idx]         = aUnit.maxHp;
     pos[idx]        = vecClone(aPos);
@@ -139,6 +120,7 @@ export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
         timer: 0,
         loop: true,
     };
+    debugState[idx] = {}; // misc debug stuff
     // gonna be folded in or removed at some point
     boidState[idx]  = {
         targetPos: null,
@@ -151,43 +133,52 @@ export function spawnEntity(aPos, aTeam, aUnit, aLane = null)
     return idx;
 }
 
-export function spawnEntityInLane(aLane, aTeam, aUnit)
+export function spawnEntityForPlayer(pos, playerIdx, unit, lane=null)
 {
-    const pos = laneSpawnPoint(aLane, aTeam);
-    // units should get on the bridge pretty quick and try to stay on, so can spawn them near the edge
-    const randVec = vecMulBy(vecRandDir(), params.laneWidth*0.5);
-    vecAddTo(pos, randVec);
-    return spawnEntity(pos, aTeam, aUnit, aLane);
+    const player = gameState.players[playerIdx];
+    const team = player.team;
+    const colorIdx = player.colorIdx;
+    const island = player.island;
+    return spawnEntity(pos, team, colorIdx, unit, island, lane);
 }
 
-function makeInput()
+export function spawnEntityInLane(laneIdx, playerIdx, unit)
 {
-    return {
-            mousePos: vec(),
-            mouseScreenPos: vec(),
-            mouseScrollDelta: 0,
-            mouseLeft: false,
-            mouseMiddle: false,
-            mouseRight: false,
-            keyMap: {},
-        };
+    const player = gameState.players[playerIdx];
+    const lane = player.island.lanes[laneIdx];
+    const pos = lane.spawnPos;
+    const randPos = vecAdd(pos, vecMulBy(vecRandDir(), params.laneWidth*0.5));
+    return spawnEntityForPlayer(randPos, playerIdx, unit, lane);
 }
 
-export function updateGameInput()
+export function getLocalPlayer()
 {
-    const input = gameState.input;
-    const lastInput = gameState.lastInput;
+    return gameState.players[gameState.localPlayerIdx];
+}
 
-    vecCopyTo(lastInput.mousePos, input.mousePos);
-    vecCopyTo(lastInput.mouseScreenPos, input.mouseScreenPos);
-    lastInput.mouseScrollDelta = input.mouseScrollDelta;
-    input.mouseScrollDelta = 0;
-    lastInput.mouseLeft = input.mouseLeft;
-    lastInput.mouseMiddle = input.mouseMiddle;
-    lastInput.mouseRight = input.mouseRight;
-    for (const [key, val] of Object.entries(input.keyMap)) {
-        lastInput.keyMap[key] = val;
-    }
+export function cycleLocalPlayer()
+{
+    const laneSelected = getLocalPlayer().laneSelected;
+    gameState.localPlayerIdx = (gameState.localPlayerIdx + 1) % gameState.players.length;
+    getLocalPlayer().laneSelected = laneSelected;
+}
+
+function addPlayer(pos, team, colorIdx)
+{
+    gameState.players.push({
+        laneSelected: -1,
+        colorIdx,
+        color: params.playerColors[colorIdx],
+        team,
+        gold: params.startingGold,
+        goldPerSec: params.startingGoldPerSec,
+        island: {
+            pos,
+            idx: INVALID_ENTITY_INDEX,
+            paths: [],
+            lanes: [],
+        },
+    });
 }
 
 export function initGameState()
@@ -198,7 +189,10 @@ export function initGameState()
             freeable: [],
             id: [],
             nextFree: [],
+            homeIsland: [],
             team: [],
+            color: [],
+            colorIdx: [],
             unit: [],
             hp: [],
             pos: [],
@@ -215,40 +209,31 @@ export function initGameState()
             boidState: [],
             hitState: [],
             animState: [],
+            debugState: [],
         },
         freeSlot: INVALID_ENTITY_INDEX,
         nextId: 0n, // bigint
-        islands: {
-            [TEAM.ORANGE]: {
-                pos: { x: -600, y: 0 },
-                idx: INVALID_ENTITY_INDEX,
-                paths: [],
-            },
-            [TEAM.BLUE]: {
-                pos: { x: 600, y: 0 },
-                idx: INVALID_ENTITY_INDEX,
-                paths: [],
-            },
-        },
-        lanes: [],
         camera: {
             pos: vec(),
             scale: 1, // scale +++ means zoom out
             easeFactor: 0.1
         },
-        player: {
-            laneSelected: 0,
-            debugTeam: TEAM.ORANGE,
-            debugClickedPoint: vec(),
-            debugClosestLanePoint: vec(),
-        },
+        players: [],
+        islands: [],
+        lanes: [],
+        localPlayerIdx: 0,
         input: makeInput(),
         lastInput: makeInput(),
     };
+
+    addPlayer(vec(-600, 0), 1, 0);
+    addPlayer(vec(600, 0), 0, 1);
+    const islands = gameState.players.map(({ island }) => island);
+    gameState.islands = islands;
     // compute the lane start and end points (bezier curves)
     // line segements approximating the curve (for gameplay code) + paths to the lighthouse
-    // ordering of points is from orange to blue, i.e. left to right
-    const islandPos = [gameState.islands[TEAM.ORANGE].pos, gameState.islands[TEAM.BLUE].pos];
+    // NOTE: assumes 2 players, ordered left to right (orange -> blue)
+    const islandPos = islands.map(island => island.pos);
     const islandToIsland = vecSub(islandPos[1], islandPos[0]);
     const centerPoint = vecAddTo(vecMul(islandToIsland, 0.5), islandPos[0]);
     const islandToLaneStart = vec(params.laneDistFromBase, 0);
@@ -289,19 +274,63 @@ export function initGameState()
         bridgePoints.push(pLaneEnd);
         pathPoints.push(pLaneEnd);
         pathPoints.push(islandPos[1]);
-        const spawns = { [TEAM.ORANGE]: pLaneStart, [TEAM.BLUE]: pLaneEnd };
+        const bridgePointsReversed = reverseToNewArray(bridgePoints);
+        // create the lanes
+        const p0Lane = {
+            bridgePoints,
+            spawnPos: pLaneStart,
+            otherPlayerIdx: 1,
+        };
+        const p1Lane = {
+            bridgePoints: bridgePointsReversed,
+            spawnPos: pLaneEnd,
+            otherPlayerIdx: 0,
+        };
+        gameState.players[0].island.lanes.push(p0Lane);
+        gameState.players[1].island.lanes.push(p1Lane);
         gameState.lanes.push({
-            pathPoints,
-            bridgePointsByTeam: { [TEAM.ORANGE]: bridgePoints, [TEAM.BLUE]: reverseToNewArray(bridgePoints) },
+            playerLanes: { 0: p0Lane, 1: p1Lane },
+            pathPoints, // TODO these don't seem to be used rn
             bezierPoints,
-            spawns
         });
-        gameState.islands[TEAM.ORANGE].paths.push([vecClone(pLaneStart), islandPos[0]]);
-        gameState.islands[TEAM.BLUE].paths.push([vecClone(pLaneEnd), islandPos[1]]);
+        // TODO probably don't need these
+        islands[0].paths.push([vecClone(pLaneStart), islandPos[0]]);
+        islands[1].paths.push([vecClone(pLaneEnd), islandPos[1]]);
     }
 
-    gameState.islands[TEAM.BLUE].idx = spawnEntity(gameState.islands[TEAM.BLUE].pos, TEAM.BLUE, units.base);
-    gameState.islands[TEAM.ORANGE].idx = spawnEntity(gameState.islands[TEAM.ORANGE].pos, TEAM.ORANGE, units.base);
+    // spawn lighthouses
+    islands[0].idx = spawnEntityForPlayer(islandPos[0], 0, units.base);
+    islands[1].idx = spawnEntityForPlayer(islandPos[1], 1, units.base);
+}
+
+function makeInput()
+{
+    return {
+            mousePos: vec(),
+            mouseScreenPos: vec(),
+            mouseScrollDelta: 0,
+            mouseLeft: false,
+            mouseMiddle: false,
+            mouseRight: false,
+            keyMap: {},
+        };
+}
+
+export function updateGameInput()
+{
+    const input = gameState.input;
+    const lastInput = gameState.lastInput;
+
+    vecCopyTo(lastInput.mousePos, input.mousePos);
+    vecCopyTo(lastInput.mouseScreenPos, input.mouseScreenPos);
+    lastInput.mouseScrollDelta = input.mouseScrollDelta;
+    input.mouseScrollDelta = 0;
+    lastInput.mouseLeft = input.mouseLeft;
+    lastInput.mouseMiddle = input.mouseMiddle;
+    lastInput.mouseRight = input.mouseRight;
+    for (const [key, val] of Object.entries(input.keyMap)) {
+        lastInput.keyMap[key] = val;
+    }
 }
 
 // Convert camera coordinates to world coordinates with scale

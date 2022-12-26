@@ -6,16 +6,22 @@ Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
  */
 
 export const debug = {
-    canPause: true,
+    skipAppMenu: false, // launch straight into a game
+    enableControls: true,
     paused: false,
-    drawState: false,
+    drawAiState: true,
     drawCollision: false,
-    drawSight: false,
+    drawSightRange: false,
+    drawWeaponRange: false,
     drawAngle: false,
+    drawVel: true,
+    drawAccel: true,
     drawSwing: true,
     drawLaneSegs: false,
     drawBezierPoints: false,
     drawClickBridgeDebugArrow: false,
+    clickedPoint: vec(),
+    closestLanePoint: vec(),
     drawFPS: true,
     fps: 0,
     fpsCounter: 0,
@@ -36,16 +42,19 @@ export const params = Object.freeze(
             laneColor: "#888888",
             laneSelectedColor: "#cccccc",
             laneWidth: 60,
+            laneSelectDist: 80,
             pathWidth: 40,
             pathColor: "#443322",
             lighthouseRadius: 50,
             islandRadius: 200,
-            teamColors: [ "#6f6f6f", "#ff9933", "#3399ff" ], // first one is 'no team'
+            playerColors: [ "#ff9933", "#3399ff" ],
             hpBarTimeMs: 2000,
             hitFadeTimeMs: 300,
             deathTimeMs: 1000,
             fallTimeMs: 500,
             fallSizeReduction: 0.75,
+            startingGold: 10,
+            startingGoldPerSec: 1,
         }
         obj.laneDistFromBase = obj.islandRadius - 15;
         obj.safePathDistFromBase = obj.laneDistFromBase - obj.laneWidth*0.5;
@@ -55,8 +64,6 @@ export const params = Object.freeze(
 
 export const TEAM = Object.freeze({
     NONE: 0,
-    ORANGE: 1,
-    BLUE: 2,
 });
 export const AISTATE = Object.freeze({
     DO_NOTHING: 0,
@@ -94,7 +101,8 @@ const obj = {
         width: 16,
         height: 24,
         centerOffset: vec(0,8), // additional offset so we draw it in the right spot in relation to entity position
-        rows: 2, // not including flipped frames; used to get flip offset
+        rows: 2, // not including flipped/recolored frames; used to get flip offset
+        playerColors: true,
         anims: {
             // all the animations will be populated by defaults if not specified
             [ANIM.IDLE]: {
@@ -135,6 +143,9 @@ const defaultAnim = {
 };
 for (const sprite of Object.values(obj)) {
     sprite.imgAsset = null;
+    if (!sprite.playerColors) {
+        sprite.playerColors = false;
+    }
     // add all the missing anims
     for (const animName of Object.values(ANIM)) {
         if (!sprite.anims[animName]) {
@@ -163,13 +174,21 @@ export const weapons = Object.freeze({
         missChance: 1,
     },
     elbow: {
-        range: 5,        // range starts at edge of unit radius, so the weapon 'radius' is unit.radius + weapon.range
+        range: 10,       // range starts at edge of unit radius, so the weapon 'radius' is unit.radius + weapon.range
         aimMs: 300,      // time from deciding to attack until starting attack
         swingMs: 200,    // time from starting attack til attack hits
         recoverMs: 400,  // time after attack hits til can attack again
         damage: 1,
         missChance: 0.3,
-    }
+    },
+    tentacle: {
+        range: 30,
+        aimMs: 300,
+        swingMs: 300,
+        recoverMs: 500,
+        damage: 3,
+        missChance: 0.25,
+    },
 });
 
 export const units = Object.freeze({
@@ -178,13 +197,14 @@ export const units = Object.freeze({
         maxSpeed: 0,
         accel: 0,
         angSpeed: 0,
-        maxHp: 1000,
-        sightRadius: 0,
+        maxHp: 50,
+        sightRange: 0,
         radius: params.lighthouseRadius,
         collides: false,
         canFall: false,
         defaultAiState: AISTATE.DO_NOTHING,
         lighthouseDamage: 0,
+        goldCost: Infinity,
         draw: {
             image: "lighthouse",
         }
@@ -192,31 +212,33 @@ export const units = Object.freeze({
     chogoringu: {
         weapon: weapons.elbow,
         maxSpeed: 3,
-        accel: 0.15,
+        accel: 0.4,
         angSpeed: 1,
         maxHp: 3,
-        sightRadius: params.laneWidth*0.75,
+        sightRange: params.laneWidth*0.5,
         radius: 10,
         collides: true,
         canFall: true,
         defaultAiState: AISTATE.PROCEED,
         lighthouseDamage: 5,
+        goldCost: 5,
         draw: {
             sprite: sprites.chogoringu,
         },
     },
     tank: {
-        weapon: weapons.elbow,
-        maxSpeed: 3,
-        accel: 0.05,
+        weapon: weapons.tentacle,
+        maxSpeed: 2,
+        accel: 0.1,
         angSpeed: 1,
-        maxHp: 3,
-        sightRadius: params.laneWidth*0.75,
+        maxHp: 10,
+        sightRange: params.laneWidth*2,
         radius: 20,
         collides: true,
         canFall: true,
         defaultAiState: AISTATE.PROCEED,
         lighthouseDamage: 5,
+        goldCost: 20,
         draw: {
             sprite: sprites.tank,
         },
@@ -227,3 +249,11 @@ export const unitHotKeys = {
     'q': units.chogoringu,
     'w': units.tank,
 };
+
+/* App stuff */
+export const SCREEN = Object.freeze({
+    TITLE: 0,
+    GAME: 1,
+    GAMEOVER: 2,
+    PAUSE: 3,
+});

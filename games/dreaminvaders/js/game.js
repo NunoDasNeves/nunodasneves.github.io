@@ -1,8 +1,9 @@
 import * as utils from "./util.js";
 Object.entries(utils).forEach(([name, exported]) => window[name] = exported);
 
-import { debug, params, AISTATE, TEAM, HITSTATE, ATKSTATE, ANIM, weapons, units, unitHotKeys } from "./data.js";
-import { enemyTeam, laneStart, laneEnd, gameState, INVALID_ENTITY_INDEX, EntityRef, spawnEntity, spawnEntityInLane, updateGameInput, initGameState, cameraToWorld, cameraVecToWorld, worldToCamera, worldVecToCamera } from './state.js';
+import { debug, params, AISTATE, HITSTATE, ATKSTATE, ANIM, weapons, units, unitHotKeys, SCREEN } from "./data.js";
+import { gameState, INVALID_ENTITY_INDEX, EntityRef, spawnEntity, spawnEntityInLane, updateGameInput, initGameState, getLocalPlayer, cycleLocalPlayer } from './state.js';
+import * as App from './app.js';
 
 /*
  * Game init and update functions
@@ -39,10 +40,10 @@ function nearestUnit(i, minRange, filterFn)
         }
         const toUnit = vecSub(pos[j], pos[i]);
         const distToUnit = vecLen(toUnit);
-        const distToUnitEdge = distToUnit - unit[j].radius;
-        if (distToUnitEdge < minDist) {
+        const distToUse = distToUnit - unit[j].radius - unit[i].radius;
+        if (distToUse < minDist) {
             best = j;
-            minDist = distToUnitEdge;
+            minDist = distToUse;
         }
     }
     return new EntityRef(best);
@@ -50,7 +51,7 @@ function nearestUnit(i, minRange, filterFn)
 
 function canChaseOrAttack(myIdx, theirIdx)
 {
-    const { pos, team, hitState } = gameState.entities;
+    const { unit, pos, team, homeIsland, hitState } = gameState.entities;
     if (hitState[theirIdx].state != HITSTATE.ALIVE) {
         return false;
     }
@@ -58,26 +59,26 @@ function canChaseOrAttack(myIdx, theirIdx)
         return false;
     }
     // ignore bases
-    if (gameState.islands[team[theirIdx]].idx == theirIdx) {
+    if (unit[theirIdx] == units.base) {
         return false;
     }
     // ignore if they're already too far into our island
-    if (getDist(pos[theirIdx], gameState.islands[team[myIdx]].pos) < params.safePathDistFromBase) {
+    if (homeIsland[myIdx] && getDist(pos[theirIdx], homeIsland[myIdx].pos) < params.safePathDistFromBase) {
         return false;
     }
     return true;
 }
 
-function nearestEnemyInSightRadius(i)
+function nearestEnemyInSightRange(i)
 {
     const { unit } = gameState.entities;
-    return nearestUnit(i, unit[i].sightRadius, canChaseOrAttack);
+    return nearestUnit(i, unit[i].sightRange, canChaseOrAttack);
 }
 
 function nearestEnemyInAttackRange(i)
 {
     const { unit } = gameState.entities;
-    return nearestUnit(i, unit[i].radius + unit[i].weapon.range, canChaseOrAttack);
+    return nearestUnit(i, unit[i].weapon.range, canChaseOrAttack);
 }
 
 // is unit i in range to attack unit j
@@ -86,8 +87,8 @@ function isInAttackRange(i, j)
     const { unit, pos } = gameState.entities;
     const toUnit = vecSub(pos[j], pos[i]);
     const distToUnit = vecLen(toUnit);
-    const distToUnitEdge = distToUnit - unit[j].radius;
-    return distToUnitEdge < (unit[i].radius + unit[i].weapon.range);
+    const distForAttacking = Math.max(distToUnit - unit[j].radius - unit[i].radius, 0);
+    return distForAttacking < unit[i].weapon.range;
 }
 
 function canAttackTarget(i)
@@ -169,7 +170,7 @@ function getAvoidanceForce(i, seekForce)
     let minToBoid = vec(); // vector to boid to avoid
     const lineDir = vecNorm(goingDir);
     // the capsule that is our avoidance 'sight'
-    const capsuleLen = unit[i].sightRadius;
+    const capsuleLen = unit[i].sightRange;
     //  the line in the center of the capsule, from our center to the center of the circle on the end
     const lineLen = capsuleLen - unit[i].radius;
     for (let j = 0; j < exists.length; ++j) {
@@ -187,7 +188,7 @@ function getAvoidanceForce(i, seekForce)
         const len = vecLen(toBoid) - unit[j].radius;
         // TODO don't try to avoid target[i]; we wanna go straight towards it
         // can see it
-        if (len > unit[i].sightRadius) {
+        if (len > unit[i].sightRange) {
             continue;
         }
         // it's in front
@@ -268,45 +269,43 @@ function getSeparationForce(i)
     return separationForce;
 }
 
-function updateBoidState()
+function decel(i)
 {
-    const { exists, team, unit, hp, pos, vel, angle, angVel, state, lane, target, atkState, physState, boidState } = gameState.entities;
-    const basePositions = [gameState.islands[TEAM.BLUE].pos, gameState.islands[TEAM.ORANGE].pos];
-    for (let i = 0; i < exists.length; ++i) {
-        if (!exists[i]) {
-            continue;
-        }
-        if (unit[i] != units.boid) {
-            continue;
-        }
-        const bState = boidState[i];
-        if (bState.targetPos != null) {
-            if (utils.getDist(pos[i], bState.targetPos) < (params.baseRadius + 5)) {
-                bState.targetPos = null;
-            }
-        }
-        if (bState.targetPos == null) {
-            bState.targetPos = basePositions.reduce((acc, v) => {
-                const d = getDist(v, pos[i]);
-                return d > acc[1] ? [v, d] : acc;
-            }, [pos[i], 0])[0];
-        }
-        const toTargetPos = vecSub(bState.targetPos, pos[i]);
-        const targetDir = vecNorm(toTargetPos);
-        const seekForce = vecMul(targetDir, unit[i].speed);
-        bState.seekForce = seekForce;
-        const finalForce = vecClone(seekForce);
-        const avoidanceForce = getAvoidanceForce(i, seekForce);
+    const { unit, vel, accel } = gameState.entities;
+    // friction: decelerate automatically if velocity with no acceleration
+    const velLen = vecLen(vel[i]);
+    // accel to inverse of velLen; ensures we don't undershoot and go backwards
+    vecClear(accel[i])
+    vecCopyTo(accel[i], vel[i]);
+    vecNegate(accel[i]);
+    // common case; reduce vel by acceleration rate
+    if (unit[i].accel < velLen) {
+        vecSetMag(accel[i], unit[i].accel);
+    }
+}
 
-        vecAddTo(finalForce, avoidanceForce);
-        vecSetMag(finalForce, unit[i].speed);
-        vecCopyTo(vel[i], finalForce);
+function accelAwayFromEdge(i)
+{
+    const { unit, lane, team, pos, accel } = gameState.entities;
+    const bridgePoints = lane[i].bridgePoints;
+    const { dir, dist } = pointNearLineSegs(pos[i], bridgePoints);
+    const distUntilFall = params.laneWidth*0.5 - dist;
+    if (distUntilFall < unit[i].radius) {
+        const x =  clamp(distUntilFall / unit[i].radius, 0, 1);
+        // smoothstep
+        const a = x * x * (3 - 2 * x);
+        const fullIn = vecMul(dir, -unit[i].accel);
+        const inVec = vecMul(fullIn, 1 - a);
+        const stayVec = vecMul(accel[i], a);
+        const result = vecAdd(inVec, stayVec);
+        vecCopyTo(accel[i], result);
+        vecClampMag(accel[i], 0, unit[i].accel);
     }
 }
 
 function updateAiState()
 {
-    const { exists, team, unit, hp, pos, accel, angle, angVel, state, lane, target, aiState, atkState, physState } = gameState.entities;
+    const { exists, team, unit, hp, pos, vel, accel, angle, angVel, state, lane, target, aiState, atkState, physState, debugState } = gameState.entities;
 
     for (let i = 0; i < exists.length; ++i) {
         if (!exists[i]) {
@@ -315,19 +314,17 @@ function updateAiState()
         if (aiState[i].state == AISTATE.DO_NOTHING) {
             continue;
         }
-        const enemyIslandPos = gameState.islands[enemyTeam(team[i])].pos
+        const enemyIslandPos = gameState.players[lane[i].otherPlayerIdx].island.pos;
         const toEnemyBase = vecSub(enemyIslandPos, pos[i]);
         const distToEnemyBase = vecLen(toEnemyBase);
-        //const toEndOfLane = vecSub(laneEnd(lane[i], team[i]), pos[i]);
-        //const distToEndOfLane = vecLen(toEndOfLane);
         const nearestAtkTarget = nearestEnemyInAttackRange(i);
-        const nearestChaseTarget = nearestEnemyInSightRadius(i);
+        const nearestChaseTarget = nearestEnemyInSightRange(i);
         switch (aiState[i].state) {
             case AISTATE.PROCEED:
             {
                 if (distToEnemyBase < unit[i].radius) {
                     aiState[i].state = AISTATE.DO_NOTHING;
-                    vecClear(accel[i]);
+                    decel(i); // stand still
                     break;
                 }
                 if (distToEnemyBase < params.safePathDistFromBase) {
@@ -343,8 +340,11 @@ function updateAiState()
             }
             case AISTATE.CHASE:
             {
-                // switch to attack if in range
-                if (nearestAtkTarget.isValid()) {
+                // switch to attack if in range (and mostly stopped)
+                // units can get stuck partially off the edge without
+                // their vel going to almostZero, so this kinda fixes that
+                const mostlyStopped = vecLen(vel[i]) < (unit[i].maxSpeed * 0.5);
+                if (nearestAtkTarget.isValid() && mostlyStopped) {
                     aiState[i].state = AISTATE.ATTACK;
                     target[i] = nearestAtkTarget;
                     atkState[i].timer = unit[i].weapon.aimMs;
@@ -391,7 +391,7 @@ function updateAiState()
         switch (aiState[i].state) {
             case AISTATE.PROCEED:
             {
-                const bridgePoints = lane[i].bridgePointsByTeam[team[i]];
+                const bridgePoints = lane[i].bridgePoints;
                 const { baseIdx, point, dir, dist } = pointNearLineSegs(pos[i], bridgePoints);
                 let currIdx = baseIdx;
                 let nextIdx = baseIdx+1;
@@ -409,10 +409,6 @@ function updateAiState()
                     vecCopyTo(nextPoint, enemyIslandPos);
                 } else {
                     vecCopyTo(nextPoint, bridgePoints[nextIdx]);
-                    // getting close to edge of bridge, go back towards center
-                    if (dist > (params.laneWidth*0.5 - unit[i].radius)) {
-                        goToPoint = true;
-                    }
                 }
                 let goDir = null
                 if (goToPoint) {
@@ -423,6 +419,9 @@ function updateAiState()
                     goDir = vecNormalize(vecSub(nextPoint, currPoint));
                 }
                 accel[i] = vecMul(goDir, unit[i].accel);
+                if (!isOnIsland(i)) {
+                    accelAwayFromEdge(i);
+                }
                 target[i].invalidate();
                 atkState[i].state = ATKSTATE.NONE;
                 break;
@@ -433,17 +432,42 @@ function updateAiState()
                 console.assert(t != INVALID_ENTITY_INDEX);
                 const toTarget = vecSub(pos[t], pos[i]);
                 const distToTarget = vecLen(toTarget);
-                if ( !almostZero(distToTarget) ) {
-                    const dir = vecMul(toTarget, 1/distToTarget);
-                    accel[i] = vecMul(dir, Math.min(unit[i].accel, distToTarget));
+                if (almostZero(distToTarget)) {
+                    decel(i);
+                    accelAwayFromEdge(i);
+                    break;
                 }
+                const rangeToTarget = distToTarget - unit[i].radius - unit[t].radius;
+                const desiredRange = unit[i].weapon.range;
+                const distToDesired = rangeToTarget - desiredRange;
+                if (distToDesired < 0) {
+                    decel(i);
+                    accelAwayFromEdge(i);
+                    break;
+                }
+                const dirToTarget = vecNorm(toTarget, 1/distToTarget);
+                const velTowardsTarget = vecDot(vel[i], dirToTarget);
+                // compute the approximate stopping distance
+                // ...these are kinematic equations of motion!
+                // underestimate the time it takes to stop by a frame
+                const stopFrames = Math.ceil(velTowardsTarget / unit[i].accel - 1); // v = v_0 + at, solve for t
+                const stopRange = ( velTowardsTarget + 0.5*unit[i].accel*stopFrames ) * stopFrames; // dx = v_0t + 1/2at^2
+                debugState[i].stopRange = vecMul(dirToTarget, stopRange);
+                if ( distToDesired > stopRange ) {
+                    accel[i] = vecMul(dirToTarget, Math.min(unit[i].accel, distToDesired));
+                    debugState[i].stopping = false;
+                } else {
+                    debugState[i].stopping = true;
+                    decel(i);
+                }
+                accelAwayFromEdge(i);
                 break;
             }
             case AISTATE.ATTACK:
             {
                 const t = target[i].getIndex();
                 console.assert(t != INVALID_ENTITY_INDEX);
-                vecClear(accel[i]); // stand still
+                decel(i); // stand still
             }
             break;
         }
@@ -462,7 +486,7 @@ function keyPressed(k)
 
 function updatePhysicsState()
 {
-    const { exists, team, unit, hp, pos, vel, accel, angle, angVel, state, lane, target, aiState, atkState, physState, hitState } = gameState.entities;
+    const { exists, team, unit, hp, pos, vel, accel, angle, angVel, state, lane, target, aiState, atkState, physState, hitState, debugState } = gameState.entities;
 
     // very simple collisions, just reset position
     const pairs = [];
@@ -472,13 +496,12 @@ function updatePhysicsState()
             continue;
         }
         physState[i].colliding = false;
-
-        // friction: decelerate automatically if velocity with no acceleration
-        if (!vecAlmostZero(vel[i]) && vecAlmostZero(accel[i])) {
-            accel[i] = vecSetMag(vecMul(vel[i], -1), unit[i].accel);
-        }
         vecAddTo(vel[i], accel[i]);
         vecClampMag(vel[i], 0, unit[i].maxSpeed);
+        if (vecAlmostZero(vel[i])) {
+            vecClear(vel[i]);
+        }
+        debugState[i].velPreColl = vecClone(vel[i]);
         vecAddTo(pos[i], vel[i]);
     };
 
@@ -511,6 +534,17 @@ function updatePhysicsState()
 
         vecAddTo(pos[i], corrNeg);
         vecAddTo(pos[j], corrPos);
+
+        // fix the velocity; slide by removing component normal to collision
+        // only if it's > 0, otherwise we'll go toward the collision!
+        const veliNormLen = vecDot(vel[i], dir);
+        if (veliNormLen > 0) {
+            vecSubFrom(vel[i], vecMul(dir, veliNormLen));
+        }
+        const veljNormLen = vecDot(vel[j], dirNeg);
+        if (veljNormLen > 0) {
+            vecSubFrom(vel[j], vecMul(dirNeg, veljNormLen));
+        }
     }
 
     // rotate to face vel
@@ -529,9 +563,20 @@ function hitEntity(i, damage)
     hitState[i].hpBarTimer = params.hpBarTimeMs;
 }
 
+function isOnIsland(i)
+{
+    const { pos } = gameState.entities;
+    for (const island of Object.values(gameState.islands)) {
+        if (getDist(pos[i], island.pos) < params.islandRadius) {
+            return true;
+        }
+    }
+    return false;
+}
+
 function updateHitState(timeDeltaMs)
 {
-    const { freeable, unit, pos, vel, hp, lane, team, aiState, atkState, hitState, physState } = gameState.entities;
+    const { freeable, unit, color, pos, vel, accel, hp, lane, team, aiState, atkState, hitState, physState } = gameState.entities;
     forAllEntities((i) => {
         hitState[i].hitTimer = Math.max(hitState[i].hitTimer - timeDeltaMs, 0);
         hitState[i].hpBarTimer = Math.max(hitState[i].hpBarTimer - timeDeltaMs, 0);
@@ -539,14 +584,7 @@ function updateHitState(timeDeltaMs)
         switch (hitState[i].state) {
             case HITSTATE.ALIVE:
             {
-                let onIsland = false;
-                for (const island of Object.values(gameState.islands)) {
-                    if (getDist(pos[i], island.pos) < params.islandRadius) {
-                        onIsland = true;
-                        break;
-                    }
-                }
-                const enemyLighthouse = gameState.islands[enemyTeam(team[i])];
+                const onIsland = isOnIsland(i);
                 // die from damage
                 if (hp[i] <= 0) {
                     // fade hpTimer fast
@@ -559,9 +597,10 @@ function updateHitState(timeDeltaMs)
                     atkState[i].state = ATKSTATE.NONE;
                     physState[i].canCollide = false;
                     vecClear(vel[i]);
+                    vecClear(accel[i]);
                 // die from falling
                 } else if (!onIsland && physState[i].canFall && hitState[i].state == HITSTATE.ALIVE) {
-                    const { baseIdx, point, dir, dist } = pointNearLineSegs(pos[i], lane[i].bridgePointsByTeam[team[i]]);
+                    const { baseIdx, point, dir, dist } = pointNearLineSegs(pos[i], lane[i].bridgePoints);
                     if (dist >= params.laneWidth*0.5) {
                         // TODO push it with a force, don't just teleport
                         vecAddTo(pos[i], vecMulBy(dir, unit[i].radius));
@@ -576,12 +615,24 @@ function updateHitState(timeDeltaMs)
                         atkState[i].state = ATKSTATE.NONE;
                         physState[i].canCollide = false;
                         vecClear(vel[i]);
+                        vecClear(accel[i]);
                     }
                 // 'die' by scoring
-                } else if (onIsland && getDist(pos[i], enemyLighthouse.pos) < params.lighthouseRadius) {
-                    hitEntity(enemyLighthouse.idx, unit[i].lighthouseDamage);
-                    // instantly disappear this frame
-                    freeable[i] = true;
+                } else {
+                    for (const player of gameState.players) {
+                        if (player.team == team[i]) {
+                            continue;
+                        }
+                        const enemyLighthouse = player.island;
+                        if (onIsland && getDist(pos[i], enemyLighthouse.pos) < params.lighthouseRadius) {
+                            hitEntity(enemyLighthouse.idx, unit[i].lighthouseDamage);
+                            if ( hp[enemyLighthouse.idx] <= 0 ) {
+                                App.gameOver(team[i], color[i]);
+                            }
+                            // instantly disappear this frame
+                            freeable[i] = true;
+                        }
+                    }
                 }
                 break;
             }
@@ -683,6 +734,14 @@ function updateAnimState(timeDeltaMs)
     });
 }
 
+function updatePlayerState(timeDeltaMs)
+{
+    const timeDeltaSec = 0.001 * timeDeltaMs;
+    for (const player of gameState.players) {
+        player.gold += player.goldPerSec * timeDeltaSec;
+    }
+}
+
 function updateGame(timeDeltaMs)
 {
     const { exists, freeable } = gameState.entities;
@@ -704,6 +763,8 @@ function updateGame(timeDeltaMs)
             gameState.freeSlot = i;
         }
     };
+
+    updatePlayerState(timeDeltaMs);
 }
 
 /*
@@ -770,36 +831,34 @@ function pointNearLineSegs(point, lineSegs)
     return { baseIdx: minBaseIdx, point: minPoint, dir: minDir, dist: minDist };
 }
 
-export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix debug pause */, timeDeltaMs)
+function processLocalPlayerInput()
 {
-    // TODO this will mess up ticksMs if we ever use it for anything, so don't for now
-    if (keyPressed('p') && debug.canPause) {
-        debug.paused = !debug.paused;
-    }
-
-    if (mouseLeftPressed()) {
-        let minLane = 0;
-        let minDist = Infinity;
-        let minStuff = null;
-        for (let i = 0; i < gameState.lanes.length; ++i) {
-            const lane = gameState.lanes[i];
-            const stuff = pointNearLineSegs(gameState.input.mousePos, lane.bridgePointsByTeam[TEAM.ORANGE]);
-            if (stuff.dist < minDist) {
-                minLane = i;
-                minDist = stuff.dist;
-                minStuff = stuff;
-            }
+    // select lane
+    const localPlayer = getLocalPlayer();
+    localPlayer.laneSelected = -1;
+    let minLane = 0;
+    let minDist = Infinity;
+    let minStuff = null;
+    for (let i = 0; i < gameState.lanes.length; ++i) {
+        const lane = gameState.lanes[i].playerLanes[0];
+        const stuff = pointNearLineSegs(gameState.input.mousePos, lane.bridgePoints);
+        if (stuff.dist < minDist) {
+            minLane = i;
+            minDist = stuff.dist;
+            minStuff = stuff;
         }
-        gameState.player.laneSelected = minLane;
-        gameState.player.debugClickedPoint = vecClone(gameState.input.mousePos);
-        gameState.player.debugClosestLanePoint = minStuff.point;
     }
-    if (keyPressed('Tab')) {
-        gameState.player.debugTeam = enemyTeam(gameState.player.debugTeam);
+    if (minDist < params.laneSelectDist) {
+        localPlayer.laneSelected = minLane;
     }
-    for (const [key, unit] of Object.entries(unitHotKeys)) {
-        if (keyPressed(key)) {
-            spawnEntityInLane(gameState.lanes[gameState.player.laneSelected], gameState.player.debugTeam, unit);
+    if (localPlayer.laneSelected >= 0) {
+        for (const [key, unit] of Object.entries(unitHotKeys)) {
+            if (keyPressed(key)) {
+                if (localPlayer.gold >= unit.goldCost) {
+                    localPlayer.gold -= unit.goldCost;
+                    spawnEntityInLane(localPlayer.laneSelected, gameState.localPlayerIdx, unit);
+                }
+            }
         }
     }
     // camera controls
@@ -811,9 +870,43 @@ export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix 
         }
     }
 
-    if (!debug.paused || keyPressed('.')) {
-        updateGame(timeDeltaMs);
+    if (debug.enableControls) {
+        if (mouseLeftPressed()) {
+            debug.clickedPoint = vecClone(gameState.input.mousePos);
+            debug.closestLanePoint = minStuff.point;
+        }
+    }
+}
+
+export function update(realTimeMs, __ticksMs /* <- don't use this unless we fix debug pause */, timeDeltaMs)
+{
+    if (App.state.screen != SCREEN.GAME) {
+        return;
     }
 
+    if (debug.enableControls) {
+        // TODO this will mess up ticksMs if we ever use it for anything, so don't for now
+        if (keyPressed('`')) {
+            debug.paused = !debug.paused;
+        }
+        if (keyPressed(']')) {
+            init();
+        }
+        if (keyPressed('Tab')) {
+            cycleLocalPlayer();
+        }
+        if (keyPressed('m')) {
+            getLocalPlayer().gold += 100;
+        }
+    }
+    if (keyPressed('p')) {
+        App.pause();
+    } else {
+        // keep getting input while debug paused
+        processLocalPlayerInput();
+        if (!debug.enableControls || !debug.paused || keyPressed('.')) {
+            updateGame(timeDeltaMs);
+        }
+    }
     updateGameInput();
 }

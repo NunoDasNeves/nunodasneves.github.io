@@ -5,6 +5,9 @@
   	<meta name="description" content="AnAntStory">
 	<title>AnAntStory</title>
     <style>
+/* Make hidden actually work */
+[hidden] { display: none !important; }
+
 html, body {
   width:  100%;
   height: 100%;
@@ -20,11 +23,70 @@ html, body {
     left: 0px;
     top: 0px;
 }
+#appUi {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    margin: auto;
+    width: 800px;
+    height: 800px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+.menuCenter {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: max-content;
+    height: max-content;
+    background-color: rgba(0,0,0,0.5);
+    margin: auto;
+    border-radius: 20px;
+}
+.menuCenter > input {
+    display: block;
+    margin: 40px 40px 0 40px;
+    padding: 0 70px;
+    height: 90px;
+    border-radius: 10px;
+    border: none;
+    background-color: floralwhite;
+}
+.menuCenter > input:last-child {
+    margin-bottom: 40px;
+}
+.menuCenter > input:hover {
+    background-color: cornsilk;
+}
+.menuCenter > input:active {
+    background-color:bisque;
+}
+.menuCenter > input:disabled {
+    background-color: gainsboro;
+}
     </style>
 </head>
 <body>
     <div id="gamediv">
         <canvas id="gamecanvas"></canvas>
+    </div>
+    <div id="appUI" hidden>
+        <div id="titleMenu" class="menuCenter">
+            <input id="buttonStartLocalDebug" type="button" value="Debug mode">
+            <input id="buttonStartPvE" type="button" value="1 Player" disabled>
+            <input id="buttonStartPvPLocal" type="button" value="2 Player" disabled>
+        </div>
+        <div id="pauseMenu" class="menuCenter">
+            <input id="buttonContinue" type="button" value="Continue">
+        </div>
+        <div id="gameOverMenu" class="menuCenter">
+            <input id="buttonBackToTitle" type="button" value="Ok">
+        </div>
     </div>
     <script type="module" src="js/main.js"></script>
 </body>

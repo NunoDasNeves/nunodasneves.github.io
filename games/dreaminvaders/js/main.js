@@ -1,3 +1,4 @@
+import * as App from './app.js';
 import * as Game from "./game.js";
 import * as State from "./state.js";
 import * as Render from "./render.js";
@@ -70,6 +71,7 @@ function initEvents()
 
 function start()
 {
+    App.init();
     Game.init();
     Render.init();
     Assets.init();
