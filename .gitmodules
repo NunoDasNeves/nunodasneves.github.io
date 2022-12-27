@@ -1,0 +1,3 @@
+[submodule "games/dreaminvaders"]
+	path = games/dreaminvaders
+	url = git@github.com:NunoDasNeves/dreaminvaders.git
