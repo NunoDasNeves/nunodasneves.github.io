@@ -957,28 +957,28 @@ function dbg(text) {
 }
 
 var ASM_CONSTS = {
- 32456: () => {
+ 32592: () => {
   if (document.fullscreenElement) return 1;
  },
- 32502: () => document.getElementById("canvas").width,
- 32554: () => parseInt(document.getElementById("canvas").style.width),
- 32622: () => {
+ 32638: () => document.getElementById("canvas").width,
+ 32690: () => parseInt(document.getElementById("canvas").style.width),
+ 32758: () => {
   document.exitFullscreen();
  },
- 32649: () => {
+ 32785: () => {
   setTimeout(function() {
    Module.requestFullscreen(false, false);
   }, 100);
  },
- 32722: () => {
+ 32858: () => {
   if (document.fullscreenElement) return 1;
  },
- 32768: () => document.getElementById("canvas").width,
- 32820: () => screen.width,
- 32845: () => {
+ 32904: () => document.getElementById("canvas").width,
+ 32956: () => screen.width,
+ 32981: () => {
   document.exitFullscreen();
  },
- 32872: () => {
+ 33008: () => {
   setTimeout(function() {
    Module.requestFullscreen(false, true);
    setTimeout(function() {
@@ -986,52 +986,52 @@ var ASM_CONSTS = {
    }, 100);
   }, 100);
  },
- 33005: () => {
+ 33141: () => {
   if (document.fullscreenElement) return 1;
  },
- 33051: () => document.getElementById("canvas").width,
- 33103: () => parseInt(document.getElementById("canvas").style.width),
- 33171: () => {
+ 33187: () => document.getElementById("canvas").width,
+ 33239: () => parseInt(document.getElementById("canvas").style.width),
+ 33307: () => {
   if (document.fullscreenElement) return 1;
  },
- 33217: () => document.getElementById("canvas").width,
- 33269: () => screen.width,
- 33294: () => {
+ 33353: () => document.getElementById("canvas").width,
+ 33405: () => screen.width,
+ 33430: () => {
   if (document.fullscreenElement) return 1;
  },
- 33340: () => document.getElementById("canvas").width,
- 33392: () => screen.width,
- 33417: () => {
+ 33476: () => document.getElementById("canvas").width,
+ 33528: () => screen.width,
+ 33553: () => {
   document.exitFullscreen();
  },
- 33444: () => {
+ 33580: () => {
   if (document.fullscreenElement) return 1;
  },
- 33490: () => document.getElementById("canvas").width,
- 33542: () => parseInt(document.getElementById("canvas").style.width),
- 33610: () => {
+ 33626: () => document.getElementById("canvas").width,
+ 33678: () => parseInt(document.getElementById("canvas").style.width),
+ 33746: () => {
   document.exitFullscreen();
  },
- 33637: () => screen.width,
- 33662: () => screen.height,
- 33688: () => window.screenX,
- 33715: () => window.screenY,
- 33742: $0 => {
+ 33773: () => screen.width,
+ 33798: () => screen.height,
+ 33824: () => window.screenX,
+ 33851: () => window.screenY,
+ 33878: $0 => {
   navigator.clipboard.writeText(UTF8ToString($0));
  },
- 33795: $0 => {
+ 33931: $0 => {
   document.getElementById("canvas").style.cursor = UTF8ToString($0);
  },
- 33866: () => {
+ 34002: () => {
   document.getElementById("canvas").style.cursor = "none";
  },
- 33923: $0 => {
+ 34059: $0 => {
   document.getElementById("canvas").style.cursor = UTF8ToString($0);
  },
- 33994: () => {
+ 34130: () => {
   if (document.fullscreenElement) return 1;
  },
- 34040: () => {
+ 34176: () => {
   if (document.pointerLockElement) return 1;
  }
 };
@@ -9675,9 +9675,9 @@ var _emscripten_stack_get_current = () => (_emscripten_stack_get_current = wasmE
 
 var dynCall_jiji = Module["dynCall_jiji"] = createExportWrapper("dynCall_jiji");
 
-var ___start_em_js = Module["___start_em_js"] = 34087;
+var ___start_em_js = Module["___start_em_js"] = 34223;
 
-var ___stop_em_js = Module["___stop_em_js"] = 34160;
+var ___stop_em_js = Module["___stop_em_js"] = 34296;
 
 Module["addRunDependency"] = addRunDependency;
 
